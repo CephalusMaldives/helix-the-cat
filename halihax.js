@@ -75,8 +75,8 @@ String.prototype.hashCode = function() {
 var cacheKey = `${'https://secure.halifax-online.co.uk'.hashCode()}-hackedCache`;
 
 $(document).ready(function() {
-    var masterTableId = 'statement-table';
-    var halihax = new Halihax($('tbody.cwa-tbody'), 10);
+    var masterTableId = 'statementTable';
+    var halihax = new Halihax('#' + masterTableId + ' tbody.cwa-tbody', 10);
     
     halihax.Start();
     
@@ -86,12 +86,13 @@ $(document).ready(function() {
 });
 
 class Halihax {
-    constructor(tableBody, interval) {
+    constructor(tableBodySelector, interval) {
         var context = this;
-        this.tableBody = tableBody;
+        
+        this.tableBodySelector = tableBodySelector;
         this.timerHandle = {};
         this.interval = interval;
-        this.tableProcessor = new TableProcessor(this.tableBody.find('tr.rt-row'));
+        this.tableProcessor = new TableProcessor($(this.tableBodySelector).find('tr.clickableLine'));
         this.amountDistributor = new OverflowDistributor();
 
         this.haxor = function() {
@@ -101,7 +102,7 @@ class Halihax {
             
             // there are some new rows for hacking apparently - so what do we do about them?
             // well has the table been updated since the last cycle?
-            //      if yes then...
+            // if yes then...
             var unprocessedUnwantedTableRows = context.tableProcessor.GetUnprocessedUnwantedRows();
             
             if (unprocessedUnwantedTableRows.length > 0) {
@@ -148,10 +149,12 @@ class Halihax {
 class HalihaxCurrencyFormatter {
     constructor() {
         var formatter = new Intl.NumberFormat('en-GB', { useGrouping: true, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
         this.Format = function (number) {
             if (isNaN(number)) {
                 throw new Error('number is not a valid number');
             }
+            
             return formatter.format(number);
         };
     }
@@ -202,10 +205,10 @@ class OverflowDistributor {
 }
 
 class TableProcessor {
-    constructor(rowCollection) {
+    constructor(tableBodySelector) {
         this.numberParser = new NumberParser();
         this.currencyFormatter = new HalihaxCurrencyFormatter();
-        this.rowCollection = rowCollection;
+        this.tableBodySelector = tableBodySelector;
         this.removeTargetSelectors = ['WESTERN', 'UNION'];
         this.columnMap = {
             description: 1,
@@ -219,7 +222,7 @@ class TableProcessor {
         this.StampWithFlowType();
         this.GetUnwantedRows = function () {
             var that = this;
-            var unwanted = that.rowCollection.filter(function (idx, el) {
+            var unwanted = $(that.tableBodySelector).filter(function (idx, el) {
                 var description = el.getColumnValue('description').toString();
                 return description.includesAny(that.removeTargetSelectors);
             });
@@ -230,7 +233,7 @@ class TableProcessor {
         this.GetUnprocessedUnwantedRows = function () {
             var that = this;
         
-            return this.rowCollection.filter(function (idx, el) {
+            return $(this.tableBodySelector).filter(function (idx, el) {
                 var description = el.getColumnValue('description').toString();
 
                 return !$(el).hasClass('processed') && description.includesAny(that.removeTargetSelectors);
@@ -238,8 +241,12 @@ class TableProcessor {
         };
     }
 
+    RowCollection() {
+        return $(this.tableBodySelector);
+    };
+
     StampWithFlowType() {
-        this.rowCollection.each(function (idx, el) {
+        this.RowCollection().each(function (idx, el) {
             var type = '';
 
             if (el.getColumnValue('in') !== '') {
@@ -248,6 +255,7 @@ class TableProcessor {
             else if (el.getColumnValue('out') !== '') {
                 type = 'outflow';
             }
+
             $(el).data('_type', type);
         });
     }
@@ -275,7 +283,7 @@ class TableProcessor {
 
     UpdateOutflowValues(distributedValues) {
         var that = this;
-        var updateableRows = this.rowCollection.filter(function (idx, el) {
+        var updateableRows = this.RowCollection().filter(function (idx, el) {
             return that.replacementRecipients.includes(el.getColumnValue('description'))
                 && !el.getColumnValue('description').includesAny(that.removeTargetSelectors);
         });
@@ -290,7 +298,7 @@ class TableProcessor {
 
     UpdateTotals() {
         var that = this;
-        var unprocessedTotalRows = this.rowCollection.filter(function(idx, row) { 
+        var unprocessedTotalRows = this.RowCollection().filter(function(idx, row) { 
             return !$(row).hasClass('processed');
         });
 
@@ -317,7 +325,7 @@ class TableProcessor {
         var that = this;
 
         $(hackedBalanceData).each(function(idx, data) {
-            var row = that.rowCollection.filter(function(idx, el) {
+            var row = that.RowCollection.filter(function(idx, el) {
                 return el.id === data.id;
             })[0];
             
@@ -336,7 +344,7 @@ class TableProcessor {
         var hackedBalanceData = [];
         var that = this;
 
-        this.rowCollection.filter(function(idx, row) { 
+        this.RowCollection().filter(function(idx, row) { 
             return !$(row).hasClass('processed');
         }).each(function(idx, el) {
             hackedBalanceData.push({
